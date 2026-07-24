@@ -1,0 +1,549 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ repo.name|default:repo.url }} — AskMyRepo</title>
+<style>
+  @font-face {
+    font-family: 'JetBrains Mono';
+    src: local('JetBrains Mono'), local('JetBrainsMono-Regular');
+  }
+  :root {
+    --ground: #0B0E14;
+    --surface: #12161F;
+    --surface-2: #171C27;
+    --line: #232937;
+    --line-bright: #333B4E;
+    --ink: #DCE1EA;
+    --ink-dim: #7B8496;
+    --ink-faint: #4B5468;
+    --accent: #5EEAD4;
+    --accent-dim: #2E7C71;
+    --accent-2: #F0B849;
+    --bad: #E8735E;
+    --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { background: var(--ground); color: var(--ink); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+  a { color: inherit; }
+  ::selection { background: var(--accent-dim); color: var(--ground); }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 28px; }
+
+  nav {
+    border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 50;
+    background: color-mix(in srgb, var(--ground) 88%, transparent); backdrop-filter: blur(8px);
+  }
+  nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 56px; }
+  .brand { font-family: var(--mono); font-size: 14px; display: flex; align-items: center; gap: 8px; text-decoration: none; }
+  .brand .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+  .back { font-family: var(--mono); font-size: 12px; color: var(--ink-dim); text-decoration: none; }
+
+  .titlebar { padding: 28px 0 20px; border-bottom: 1px solid var(--line); }
+  .titlebar h1 { font-size: 22px; margin: 0 0 6px; }
+  .titlebar .meta { font-family: var(--mono); font-size: 12px; color: var(--ink-faint); display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+  .pill {
+    font-family: var(--mono); font-size: 11px; padding: 3px 10px; border-radius: 20px;
+    white-space: nowrap; border: 1px solid var(--line-bright);
+  }
+  .pill.ready { color: var(--accent); border-color: var(--accent-dim); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  .pill.failed { color: var(--bad); border-color: var(--bad); background: color-mix(in srgb, var(--bad) 10%, transparent); }
+
+  .demo { margin: 28px 0 40px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden; }
+  .demo-bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
+  .demo-bar .chip { width: 9px; height: 9px; border-radius: 50%; background: var(--line-bright); }
+  .demo-bar .label { font-family: var(--mono); font-size: 11.5px; color: var(--ink-faint); margin-left: 4px; }
+
+  .demo-body { display: grid; grid-template-columns: 1.1fr 1fr; min-width: 0; }
+  @media (max-width: 760px) { .demo-body { grid-template-columns: 1fr; } }
+
+  .graph-pane { position: relative; border-right: 1px solid var(--line); aspect-ratio: 4 / 3; min-width: 0; }
+  @media (max-width: 760px) { .graph-pane { border-right: none; border-bottom: 1px solid var(--line); aspect-ratio: 16 / 9; } }
+  canvas#graph { display: block; width: 100%; height: 100%; }
+  .graph-caption {
+    position: absolute; bottom: 10px; left: 12px; font-family: var(--mono); font-size: 10.5px;
+    color: var(--ink-faint);
+  }
+  .sweep-btn {
+    position: absolute; bottom: 8px; right: 10px; font-family: var(--mono); font-size: 10.5px;
+    color: var(--ink-dim); background: var(--surface-2); border: 1px solid var(--line-bright);
+    border-radius: 20px; padding: 4px 10px; cursor: pointer;
+  }
+  .sweep-btn:hover { color: var(--accent-2); border-color: var(--accent-2); }
+  .sweep-btn:disabled { opacity: 0.5; cursor: default; }
+
+  .qa-pane { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+
+  form#askForm { display: flex; flex-direction: column; gap: 10px; }
+  .q-row { display: flex; gap: 8px; }
+  input[type="text"] {
+    flex: 1; min-width: 0; font-family: var(--mono); font-size: 13px;
+    background: var(--ground); border: 1px solid var(--line-bright); border-radius: 6px;
+    color: var(--ink); padding: 10px 12px;
+  }
+  input[type="text"]:focus { outline: none; border-color: var(--accent); }
+  .btn { font-family: var(--mono); font-size: 12.5px; padding: 10px 16px; border-radius: 6px; border: 1px solid var(--line-bright); background: var(--surface); color: var(--ink); cursor: pointer; white-space: nowrap; }
+  .btn.primary { background: var(--accent-2); color: #241703; border-color: var(--accent-2); font-weight: 600; }
+  .btn:disabled { opacity: 0.5; cursor: default; }
+
+  .params { display: flex; gap: 16px; flex-wrap: wrap; font-family: var(--mono); font-size: 11px; color: var(--ink-faint); }
+  .params label { display: flex; flex-direction: column; gap: 3px; }
+  .params input[type="range"] { width: 90px; accent-color: var(--accent-2); }
+  .params .val { color: var(--accent-2); }
+  .params-toggle { font-family: var(--mono); font-size: 11px; color: var(--ink-dim); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; width: fit-content; background: none; border: none; padding: 0; }
+  .params-panel { display: none; }
+  .params-panel.show { display: flex; }
+
+  .retrieval-log {
+    font-family: var(--mono); font-size: 11.5px; color: var(--ink-faint);
+    display: flex; flex-direction: column; gap: 4px; padding: 10px 12px;
+    background: var(--ground); border: 1px solid var(--line); border-radius: 6px;
+    max-height: 160px; overflow-y: auto; display: none;
+  }
+  .retrieval-log.show { display: flex; }
+  .retrieval-log .row { display: flex; justify-content: space-between; gap: 10px; opacity: 0; animation: fadeIn 0.35s ease forwards; min-width: 0; }
+  .retrieval-log .row span:first-child { color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .retrieval-log .row .score { color: var(--accent); font-variant-numeric: tabular-nums; flex: none; }
+  .retrieval-log .row .score.expanded { color: var(--ink-faint); }
+  @keyframes fadeIn { to { opacity: 1; } }
+
+  .answer-box {
+    font-size: 14px; line-height: 1.65; color: var(--ink);
+    border-left: 2px solid var(--accent); padding: 4px 0 4px 14px;
+    display: none; white-space: pre-wrap;
+    overflow-wrap: anywhere; word-break: break-word;
+    max-width: 100%; overflow-x: auto;
+  }
+  .answer-box.show { display: block; }
+  .answer-box code, .answer-box pre {
+    font-family: var(--mono); font-size: 12.5px;
+    white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word;
+  }
+
+  .loading { font-family: var(--mono); font-size: 12.5px; color: var(--accent-2); display: none; align-items: center; gap: 8px; }
+  .loading.show { display: flex; }
+  .spinner { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--line-bright); border-top-color: var(--accent-2); animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+
+  .empty-hint { font-family: var(--mono); font-size: 12px; color: var(--ink-faint); }
+
+  section.history { padding: 0 0 60px; }
+  .history-head { font-family: var(--mono); font-size: 12px; color: var(--ink-faint); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 16px; }
+  .history-item { padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+  .history-item .q { color: var(--ink); margin-bottom: 3px; }
+  .history-item .t { font-family: var(--mono); font-size: 11px; color: var(--ink-faint); }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="{% url 'repo_list' %}"><span class="dot"></span>askmyrepo</a>
+    <a class="back" href="{% url 'repo_list' %}">&laquo; all repos</a>
+  </div>
+</nav>
+
+<div class="wrap">
+  <div class="titlebar">
+    <h1>{{ repo.name|default:repo.url }}</h1>
+    <div class="meta">
+      <span class="pill {{ repo.status }}">{{ repo.status }}</span>
+      <span>{{ file_count }} files</span>
+      <span>{{ chunk_count }} chunks</span>
+      <span>{{ repo.url }}</span>
+    </div>
+    {% if repo.error_message %}<p style="color:var(--bad); font-family:var(--mono); font-size:12.5px;">{{ repo.error_message }}</p>{% endif %}
+  </div>
+
+  {% if repo.status == "ready" %}
+  <div class="demo">
+    <div class="demo-bar">
+      <span class="chip"></span><span class="chip"></span><span class="chip"></span>
+      <span class="label">retrieval trace</span>
+    </div>
+    <div class="demo-body">
+      <div class="graph-pane">
+        <canvas id="graph"></canvas>
+        <div class="graph-caption" id="graphCaption">{{ chunk_count }} chunks indexed</div>
+        <button type="button" class="sweep-btn" id="sweepBtn" title="Visually sweep every indexed chunk — not a retrieval query">sweep index</button>
+      </div>
+      <div class="qa-pane">
+        <form id="askForm">
+          <div class="q-row">
+            <input type="text" id="question" placeholder="where is auth handled?" required>
+            <button type="submit" class="btn primary" id="askBtn">Ask</button>
+          </div>
+          <button type="button" class="params-toggle" id="paramsToggle">tune sampling params</button>
+          <div class="params params-panel" id="paramsPanel">
+            <label>temperature <span class="val" id="tempVal">0.2</span>
+              <input type="range" id="temperature" min="0" max="1" step="0.05" value="0.2">
+            </label>
+            <label>top_p <span class="val" id="topPVal">0.9</span>
+              <input type="range" id="top_p" min="0.1" max="1" step="0.05" value="0.9">
+            </label>
+            <label>top_k <span class="val" id="topKVal">40</span>
+              <input type="range" id="top_k_sampling" min="1" max="100" step="1" value="40">
+            </label>
+            <label>retrieve k <span class="val" id="retKVal">4</span>
+              <input type="range" id="top_k_retrieval" min="1" max="8" step="1" value="4">
+            </label>
+          </div>
+        </form>
+
+        <div class="loading" id="loading"><span class="spinner"></span><span id="loadingText">Retrieving relevant code&hellip;</span></div>
+        <div class="retrieval-log" id="retrievalLog"></div>
+        <div class="answer-box" id="answerBox"></div>
+        <p class="empty-hint" id="emptyHint">Ask a question to see retrieval + a cited answer from the local model.</p>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <p class="empty-hint" style="margin-top:24px;">Repo isn't ready yet (status: {{ repo.status }}).</p>
+  {% endif %}
+
+  <section class="history">
+    <p class="history-head">recent queries</p>
+    {% for q in queries %}
+    <div class="history-item">
+      <div class="q">{{ q.question }}</div>
+      <div class="t">{{ q.created_at }} &middot; temp={{ q.temperature }} top_p={{ q.top_p }} top_k={{ q.top_k }}</div>
+    </div>
+    {% empty %}
+    <p class="empty-hint">No queries yet.</p>
+    {% endfor %}
+  </section>
+</div>
+
+<script>
+const REPO_ID = {{ repo.id }};
+
+// ---------- params UI ----------
+const paramsToggle = document.getElementById('paramsToggle');
+const paramsPanel = document.getElementById('paramsPanel');
+paramsToggle && paramsToggle.addEventListener('click', () => paramsPanel.classList.toggle('show'));
+
+['temperature', 'top_p', 'top_k_sampling', 'top_k_retrieval'].forEach(id => {
+  const input = document.getElementById(id);
+  if (!input) return;
+  const labelMap = { temperature: 'tempVal', top_p: 'topPVal', top_k_sampling: 'topKVal', top_k_retrieval: 'retKVal' };
+  const out = document.getElementById(labelMap[id]);
+  input.addEventListener('input', () => out.textContent = input.value);
+});
+
+// ---------- graph ----------
+const canvas = document.getElementById('graph');
+let nodes = [], edges = [], hitIds = new Set(), expandedIds = new Set(), sweepIds = new Set();
+
+if (canvas) {
+  const ctx = canvas.getContext('2d');
+  let W, H, DPR;
+
+  function isDark() {
+    const t = document.documentElement.getAttribute('data-theme');
+    if (t === 'dark') return true;
+    if (t === 'light') return false;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+
+  function resize() {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = rect.width; H = rect.height;
+    canvas.width = W * DPR; canvas.height = H * DPR;
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  resize();
+  let resizeRAF = null;
+  window.addEventListener('resize', () => {
+    if (resizeRAF) cancelAnimationFrame(resizeRAF);
+    resizeRAF = requestAnimationFrame(resize);
+  });
+
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let layoutNodes = [];
+
+  let particles = [];
+
+  fetch(`/api/repos/${REPO_ID}/graph/`).then(r => r.json()).then(data => {
+    nodes = data.nodes; edges = data.edges;
+    const idToIdx = new Map(nodes.map((n, i) => [n.id, i]));
+    layoutNodes = nodes.map(n => ({
+      id: n.id,
+      x: Math.random(), y: Math.random(),
+      vx: (Math.random() - 0.5) * 0.00022, vy: (Math.random() - 0.5) * 0.00022,
+      r: 1.6 + Math.random() * 1.6,
+      bow: (Math.random() - 0.5) * 0.06
+    }));
+    edges = edges
+      .filter(e => idToIdx.has(e.source) && idToIdx.has(e.target))
+      .map(e => [idToIdx.get(e.source), idToIdx.get(e.target)]);
+
+    particles = [];
+    for (let i = 0; i < Math.min(edges.length, 40); i++) {
+      particles.push({ edge: Math.floor(Math.random() * edges.length), t: Math.random() });
+    }
+  }).catch(() => {});
+
+  let beamT = -1;
+  function draw() {
+    const dark = isDark();
+    const lineCol = dark ? '35,42,58' : '210,214,224';
+    const nodeCol = dark ? '86,96,120' : '150,158,176';
+    const accent = dark ? '94,234,212' : '15,156,139';
+    const accent2 = dark ? '240,184,73' : '180,120,12';
+
+    ctx.clearRect(0, 0, W, H);
+
+    if (!reduced) {
+      layoutNodes.forEach(n => {
+        n.x += n.vx; n.y += n.vy;
+        if (n.x < 0.04 || n.x > 0.96) n.vx *= -1;
+        if (n.y < 0.06 || n.y > 0.94) n.vy *= -1;
+      });
+    }
+
+    function curvePoint(na, nb) {
+      const x1 = na.x * W, y1 = na.y * H, x2 = nb.x * W, y2 = nb.y * H;
+      const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+      const dx = x2 - x1, dy = y2 - y1;
+      const bow = (na.bow + nb.bow) / 2;
+      return { x1, y1, x2, y2, cx: mx - dy * bow, cy: my + dx * bow };
+    }
+
+    ctx.lineWidth = 1;
+    edges.forEach(([a, b]) => {
+      const na = layoutNodes[a], nb = layoutNodes[b];
+      if (!na || !nb) return;
+      const bothActive = (hitIds.has(na.id) || expandedIds.has(na.id)) && (hitIds.has(nb.id) || expandedIds.has(nb.id));
+      const oneActive = hitIds.has(na.id) || hitIds.has(nb.id) || expandedIds.has(na.id) || expandedIds.has(nb.id);
+      const sweptEdge = sweepIds.has(na.id) && sweepIds.has(nb.id);
+      const c = curvePoint(na, nb);
+      ctx.strokeStyle = bothActive ? `rgba(${accent},0.6)`
+        : oneActive ? `rgba(${accent},0.3)`
+        : sweptEdge ? `rgba(${accent2},0.4)`
+        : `rgba(${lineCol},0.5)`;
+      ctx.beginPath();
+      ctx.moveTo(c.x1, c.y1);
+      ctx.quadraticCurveTo(c.cx, c.cy, c.x2, c.y2);
+      ctx.stroke();
+    });
+
+    if (!reduced && particles.length && edges.length) {
+      ctx.fillStyle = `rgba(${accent},0.7)`;
+      particles.forEach(p => {
+        const [a, b] = edges[p.edge] || [];
+        const na = layoutNodes[a], nb = layoutNodes[b];
+        if (!na || !nb) return;
+        const active = hitIds.has(na.id) || hitIds.has(nb.id);
+        if (!active) return;
+        p.t += 0.006;
+        if (p.t > 1) p.t = 0;
+        const c = curvePoint(na, nb);
+        const t = p.t;
+        const x = (1 - t) * (1 - t) * c.x1 + 2 * (1 - t) * t * c.cx + t * t * c.x2;
+        const y = (1 - t) * (1 - t) * c.y1 + 2 * (1 - t) * t * c.cy + t * t * c.y2;
+        ctx.beginPath();
+        ctx.arc(x, y, 1.4, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    if (beamT >= 0 && beamT <= 1) {
+      const bx = beamT * W;
+      const grad = ctx.createLinearGradient(bx - 50, 0, bx + 50, 0);
+      grad.addColorStop(0, `rgba(${accent2},0)`);
+      grad.addColorStop(0.5, `rgba(${accent2},0.45)`);
+      grad.addColorStop(1, `rgba(${accent2},0)`);
+      ctx.fillStyle = grad;
+      ctx.fillRect(bx - 50, 0, 100, H);
+      beamT += reduced ? 1 : 0.018;
+    }
+
+    layoutNodes.forEach(n => {
+      const px = n.x * W, py = n.y * H;
+      const hit = hitIds.has(n.id);
+      const expanded = !hit && expandedIds.has(n.id);
+      const swept = !hit && !expanded && sweepIds.has(n.id);
+
+      if (hit) {
+        ctx.save();
+        ctx.shadowColor = `rgba(${accent},0.95)`;
+        ctx.shadowBlur = 16;
+        ctx.beginPath();
+        ctx.arc(px, py, n.r + 2, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${accent},1)`;
+        ctx.fill();
+        ctx.restore();
+        ctx.beginPath();
+        ctx.arc(px, py, n.r + 7, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(${accent},0.35)`;
+        ctx.stroke();
+      } else if (expanded) {
+        ctx.save();
+        ctx.shadowColor = `rgba(${accent},0.6)`;
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.arc(px, py, n.r + 0.8, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${accent},0.65)`;
+        ctx.fill();
+        ctx.restore();
+      } else if (swept) {
+        ctx.save();
+        ctx.shadowColor = `rgba(${accent2},0.9)`;
+        ctx.shadowBlur = 14;
+        ctx.beginPath();
+        ctx.arc(px, py, n.r + 1.6, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${accent2},1)`;
+        ctx.fill();
+        ctx.restore();
+        ctx.beginPath();
+        ctx.arc(px, py, n.r + 6, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(${accent2},0.3)`;
+        ctx.stroke();
+      } else {
+        ctx.beginPath();
+        ctx.arc(px, py, n.r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${nodeCol},0.75)`;
+        ctx.fill();
+      }
+    });
+
+    requestAnimationFrame(draw);
+  }
+  draw();
+
+  window.fireBeam = () => { beamT = 0; };
+
+  window.sweepIndex = (onDone, opts) => {
+    const durationMs = (opts && opts.durationMs) || 5200;
+    const holdMs = (opts && opts.holdMs) || 1600;
+
+    sweepIds = new Set();
+    if (!layoutNodes.length) { if (onDone) onDone(); return; }
+
+    // Radiate outward from a random origin (by on-screen distance) rather than
+    // popcorn-random order — reads as a signal propagating through the index
+    // instead of nodes just blinking on arbitrarily.
+    const origin = layoutNodes[Math.floor(Math.random() * layoutNodes.length)];
+    const order = [...layoutNodes]
+      .sort((a, b) => {
+        const da = (a.x - origin.x) ** 2 + (a.y - origin.y) ** 2;
+        const db = (b.x - origin.x) ** 2 + (b.y - origin.y) ** 2;
+        return da - db;
+      })
+      .map(n => n.id);
+
+    if (reduced) {
+      sweepIds = new Set(order);
+      if (onDone) setTimeout(onDone, 300);
+      return;
+    }
+
+    const total = order.length;
+    const tickMs = 16;
+    const ticks = Math.max(1, Math.round(durationMs / tickMs));
+    const perTick = Math.max(1, Math.ceil(total / ticks));
+    let i = 0;
+    const timer = setInterval(() => {
+      for (let k = 0; k < perTick && i < total; k++, i++) sweepIds.add(order[i]);
+      if (i >= total) {
+        clearInterval(timer);
+        setTimeout(() => { sweepIds = new Set(); if (onDone) onDone(); }, holdMs);
+      }
+    }, tickMs);
+  };
+}
+
+// ---------- sweep button ----------
+const sweepBtn = document.getElementById('sweepBtn');
+const graphCaption = document.getElementById('graphCaption');
+const baseCaption = graphCaption ? graphCaption.textContent : '';
+sweepBtn && sweepBtn.addEventListener('click', () => {
+  if (!window.sweepIndex) return;
+  sweepBtn.disabled = true;
+  graphCaption.textContent = `sweeping ${nodes.length} of {{ chunk_count }} indexed chunks…`;
+  window.sweepIndex(() => {
+    sweepBtn.disabled = false;
+    graphCaption.textContent = baseCaption;
+  });
+});
+
+// ---------- ask flow ----------
+const form = document.getElementById('askForm');
+const askBtn = document.getElementById('askBtn');
+const loading = document.getElementById('loading');
+const loadingText = document.getElementById('loadingText');
+const retrievalLog = document.getElementById('retrievalLog');
+const answerBox = document.getElementById('answerBox');
+const emptyHint = document.getElementById('emptyHint');
+
+form && form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const question = document.getElementById('question').value.trim();
+  if (!question) return;
+
+  askBtn.disabled = true;
+  emptyHint.style.display = 'none';
+  answerBox.classList.remove('show');
+  retrievalLog.classList.remove('show');
+  retrievalLog.innerHTML = '';
+  loading.classList.add('show');
+  loadingText.textContent = 'Retrieving relevant code…';
+  hitIds = new Set();
+  expandedIds = new Set();
+  if (window.fireBeam) window.fireBeam();
+
+  const payload = {
+    question,
+    temperature: parseFloat(document.getElementById('temperature').value),
+    top_p: parseFloat(document.getElementById('top_p').value),
+    top_k_sampling: parseInt(document.getElementById('top_k_sampling').value, 10),
+    top_k_retrieval: parseInt(document.getElementById('top_k_retrieval').value, 10),
+  };
+
+  try {
+    loadingText.textContent = 'Generating answer with local model…';
+    const res = await fetch(`/api/repos/${REPO_ID}/query/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    loading.classList.remove('show');
+    askBtn.disabled = false;
+
+    if (!res.ok) {
+      answerBox.textContent = 'Error: ' + (data.error || 'request failed');
+      answerBox.classList.add('show');
+      return;
+    }
+
+    hitIds = new Set(data.retrieved_chunks.filter(c => c.source !== 'call_graph').map(c => c.id).filter(Boolean));
+    expandedIds = new Set(data.retrieved_chunks.filter(c => c.source === 'call_graph').map(c => c.id).filter(Boolean));
+
+    retrievalLog.classList.add('show');
+    data.retrieved_chunks.forEach((c, i) => {
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.style.animationDelay = (i * 0.08) + 's';
+      const scoreText = c.similarity !== null ? c.similarity.toFixed(2) : 'graph';
+      row.innerHTML = `<span>${c.file_path}${c.symbol_name ? ' :: ' + c.symbol_name : ''}:${c.start_line}</span><span class="score ${c.similarity === null ? 'expanded' : ''}">${scoreText}</span>`;
+      retrievalLog.appendChild(row);
+    });
+
+    answerBox.textContent = data.answer;
+    answerBox.classList.add('show');
+  } catch (err) {
+    loading.classList.remove('show');
+    askBtn.disabled = false;
+    answerBox.textContent = 'Request failed: ' + err.message;
+    answerBox.classList.add('show');
+  }
+});
+</script>
+</body>
+</html>

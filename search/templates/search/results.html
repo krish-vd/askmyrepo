@@ -1,0 +1,35 @@
+<!doctype html>
+<html>
+<head><title>Results - {{ repo.name }}</title></head>
+<body>
+<p><a href="{% url 'ask_question' repo.id %}">&laquo; ask another question</a> | <a href="{% url 'repo_detail' repo.id %}">repo detail</a></p>
+
+<h1>Q: {{ question }}</h1>
+
+<h2>Answer</h2>
+<pre style="white-space: pre-wrap; border: 1px solid #ccc; padding: 10px;">{{ result.answer }}</pre>
+
+<h2>Generation params used</h2>
+<ul>
+    <li>top_k (retrieval): {{ result.params.top_k_retrieval }}</li>
+    <li>temperature: {{ result.params.temperature }}</li>
+    <li>top_p: {{ result.params.top_p }}</li>
+    <li>top_k (sampling): {{ result.params.top_k_sampling }}</li>
+</ul>
+
+<h2>Retrieval trace</h2>
+<table border="1" cellpadding="6">
+    <tr><th>Source</th><th>File</th><th>Symbol</th><th>Type</th><th>Lines</th><th>Similarity</th></tr>
+    {% for chunk in result.retrieved_chunks %}
+    <tr>
+        <td>{{ chunk.source }}</td>
+        <td>{{ chunk.file_path }}</td>
+        <td>{{ chunk.symbol_name|default:"-" }}</td>
+        <td>{{ chunk.symbol_type }}</td>
+        <td>{{ chunk.start_line }}-{{ chunk.end_line }}</td>
+        <td>{% if chunk.similarity %}{{ chunk.similarity }}{% else %}-{% endif %}</td>
+    </tr>
+    {% endfor %}
+</table>
+</body>
+</html>

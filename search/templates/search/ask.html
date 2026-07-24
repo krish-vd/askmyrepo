@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+<head><title>Ask - {{ repo.name }}</title></head>
+<body>
+<p><a href="{% url 'repo_detail' repo.id %}">&laquo; back to {{ repo.name }}</a></p>
+<h1>Ask a question about {{ repo.name }}</h1>
+
+{% if error %}
+<p style="color:red">{{ error }}</p>
+{% endif %}
+
+<form method="post">
+    {% csrf_token %}
+    <p><textarea name="question" rows="3" cols="60" placeholder="e.g. How does token verification work?" required></textarea></p>
+
+    <fieldset>
+        <legend>Retrieval / generation params</legend>
+        <label>top_k (retrieval count): <input type="number" name="top_k_retrieval" value="4" min="1" max="20"></label><br>
+        <label>temperature: <input type="number" step="0.05" name="temperature" value="0.2" min="0" max="2"></label><br>
+        <label>top_p: <input type="number" step="0.05" name="top_p" value="0.9" min="0" max="1"></label><br>
+        <label>top_k (sampling): <input type="number" name="top_k_sampling" value="40" min="1" max="200"></label><br>
+    </fieldset>
+
+    <button type="submit">Ask</button>
+</form>
+</body>
+</html>
